@@ -36,22 +36,20 @@ COLUMNS_ORDER = [
 ]
 
 # --- 4. CONNESSIONE GOOGLE SHEETS ---
-# La connessione usa l'URL definito nei "Secrets" di Streamlit Cloud
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carica_dati():
     try:
-        # ttl=0 assicura che i dati siano sempre freschi ad ogni refresh
-        return conn.read(ttl="0")
-    except Exception:
-        # Ritorna un DataFrame vuoto se il foglio è nuovo/non raggiungibile
+        # Legge l'URL direttamente dai Secrets per essere sicuri al 100%
+        url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        # Carica il foglio
+        return conn.read(spreadsheet=url, ttl="0")
+    except Exception as e:
+        # Se c'è un errore, lo stampa per aiutarti a capire (es. permessi mancanti)
+        st.error(f"Errore di connessione: {e}")
         return pd.DataFrame(columns=COLUMNS_ORDER)
 
-def format_it_comma(valore):
-    try: return "{:,.2f}".format(float(valore)).replace(',', 'X').replace('.', ',').replace('X', '.')
-    except: return "0,00"
-
-# Caricamento dati iniziale
+# Caricamento dati
 df = carica_dati()
 
 # --- 5. SIDEBAR NAVIGAZIONE ---
