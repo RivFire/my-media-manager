@@ -13,7 +13,16 @@ def format_it_comma(valore):
     except:
         return "0,00"
 
-# --- 3. COSTANTI E OPZIONI FISSE ---
+def get_safe_options(df, column):
+    """Estrae opzioni uniche, rimuove i vuoti e ordina senza errori di tipo"""
+    if df.empty or column not in df.columns:
+        return []
+    # Prendiamo i valori unici, convertiamoli in stringa e rimuoviamo i nulli/vuoti
+    options = df[column].astype(str).replace('nan', '').replace('None', '')
+    options = [opt for opt in options.unique() if opt.strip() != '']
+    return sorted(options)
+
+# --- 3. COSTANTI ---
 COLUMNS_ORDER = [
     "serie", "subserie", "numero", "variante", "titolo", "editore", 
     "formato", "frequenza", "colore", "pagine", "prezzo_copertina", "valuta",
@@ -28,14 +37,13 @@ LISTA_COLORE = ["B/N", "Colore", "Misto"]
 LISTA_VALUTA = ["Euro", "Lira"]
 LISTA_STATO = ["stock", "wish list"]
 
-# --- 4. CSS PERSONALIZZATO ---
+# --- 4. CSS ---
 st.markdown("""
     <style>
     html, body, [class*="st-"] { font-size: 14px !important; }
     h1 { font-size: 28px !important; color: #ff4b4b; font-weight: bold; }
     .stForm { border-radius: 12px; padding: 25px; border: 1px solid #eee; background-color: #fcfcfc; }
     [data-testid="stMetricValue"] { font-size: 24px; color: #ff4b4b; }
-    .stDataFrame { border: 1px solid #eee; border-radius: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -62,51 +70,41 @@ df = carica_dati()
 st.sidebar.title("📖 Comic Manager")
 menu = st.sidebar.radio("Vai a:", ["📚 Archivio", "📊 Statistiche", "➕ Aggiungi", "⚙️ Configurazione"])
 
-# --- SEZIONE 1: ARCHIVIO CON FILTRI AVANZATI ---
+# --- SEZIONE 1: ARCHIVIO ---
 if menu == "📚 Archivio":
     st.title("📚 La mia Collezione")
     
     if not df.empty:
-        # Metriche
         df_calc = df.copy()
         df_calc['prezzo_copertina'] = pd.to_numeric(df_calc['prezzo_copertina'], errors='coerce').fillna(0)
         val_tot = df_calc[df_calc['valuta'] == 'Euro']['prezzo_copertina'].sum()
 
         m1, m2, m3 = st.columns(3)
         m1.metric("Albi Totali", len(df))
-        m2.metric("In Stock", len(df[df['stato'] == 'stock']))
+        m2.metric("In Stock", len(df[df['stato'].astype(str).str.lower() == 'stock']))
         m3.metric("Valore (Euro)", f"€ {format_it_comma(val_tot)}")
 
         st.divider()
         
-        # --- FILTRI AVANZATI ---
-        with st.expander("🔍 Filtri Avanzati di Ricerca", expanded=True):
+        with st.expander("🔍 Filtri Avanzati", expanded=True):
             f1, f2, f3 = st.columns(3)
-            search_text = f1.text_input("Cerca testo (Serie, Titolo, ISBN...)", placeholder="Es: Topolino")
-            
-            # Filtri dinamici basati sui dati
-            f_serie = f2.selectbox("Filtra per Serie", ["Tutte"] + sorted(df['serie'].unique().tolist()))
-            f_editore = f3.selectbox("Filtra per Editore", ["Tutti"] + sorted(df['editore'].unique().tolist()))
+            search_text = f1.text_input("Cerca testo")
+            f_serie = f2.selectbox("Filtra Serie", ["Tutte"] + get_safe_options(df, 'serie'))
+            f_editore = f3.selectbox("Filtra Editore", ["Tutti"] + get_safe_options(df, 'editore'))
             
             f4, f5, f6 = st.columns(3)
-            f_box = f4.selectbox("Filtra per Box", ["Tutti"] + sorted(df['storage_box'].unique().tolist()))
-            f_stato = f5.selectbox("Filtra per Stato", ["Tutti"] + LISTA_STATO)
-            f_formato = f6.selectbox("Filtra per Formato", ["Tutti"] + LISTA_FORMATO)
+            f_box = f4.selectbox("Filtra Box", ["Tutti"] + get_safe_options(df, 'storage_box'))
+            f_stato = f5.selectbox("Filtra Stato", ["Tutti"] + LISTA_STATO)
+            f_formato = f6.selectbox("Filtra Formato", ["Tutti"] + LISTA_FORMATO)
 
-        # Applicazione Filtri
         filt_df = df.copy()
         if search_text:
-            filt_df = filt_df[filt_df.apply(lambda r: search_text.lower() in str(r).lower(), axis=1)]
-        if f_serie != "Tutte":
-            filt_df = filt_df[filt_df['serie'] == f_serie]
-        if f_editore != "Tutti":
-            filt_df = filt_df[filt_df['editore'] == f_editore]
-        if f_box != "Tutti":
-            filt_df = filt_df[filt_df['storage_box'] == f_box]
-        if f_stato != "Tutti":
-            filt_df = filt_df[filt_df['stato'] == f_stato]
-        if f_formato != "Tutti":
-            filt_df = filt_df[filt_df['formato'] == f_formato]
+            filt_df = filt_df[filt_df.astype(str).apply(lambda r: search_text.lower() in r.str.lower().values, axis=1)]
+        if f_serie != "Tutte": filt_df = filt_df[filt_df['serie'].astype(str) == f_serie]
+        if f_editore != "Tutti": filt_df = filt_df[filt_df['editore'].astype(str) == f_editore]
+        if f_box != "Tutti": filt_df = filt_df[filt_df['storage_box'].astype(str) == f_box]
+        if f_stato != "Tutti": filt_df = filt_df[filt_df['stato'].astype(str) == f_stato]
+        if f_formato != "Tutti": filt_df = filt_df[filt_df['formato'].astype(str) == f_formato]
 
         st.dataframe(filt_df[COLUMNS_ORDER], use_container_width=True, hide_index=True)
     else:
@@ -114,74 +112,66 @@ if menu == "📚 Archivio":
 
 # --- SEZIONE 2: STATISTICHE ---
 elif menu == "📊 Statistiche":
-    st.title("📊 Analisi Collezione")
+    st.title("📊 Analisi")
     if not df.empty:
         c1, c2 = st.columns(2)
         with c1:
             st.subheader("Top 10 Serie")
             st.bar_chart(df['serie'].value_counts().head(10))
         with c2:
-            st.subheader("Stato Collezione")
+            st.subheader("Stato")
             st.write(df['stato'].value_counts())
-            
-        st.divider()
-        st.subheader("Riepilogo Editori")
-        ed_stats = df.groupby('editore').size().reset_index(name='Albi')
-        st.table(ed_stats.sort_values(by='Albi', ascending=False))
     else:
-        st.warning("Nessun dato per le statistiche.")
+        st.warning("Dati insufficienti.")
 
-# --- SEZIONE 3: AGGIUNGI (CON OGNI CAMPO A TENDINA) ---
+# --- SEZIONE 3: AGGIUNGI ---
 elif menu == "➕ Aggiungi":
-    st.title("➕ Inserimento Albo")
+    st.title("➕ Inserimento")
     
-    def get_opts(col):
-        return sorted(df[col].dropna().unique().tolist()) if not df.empty else []
-
     with st.form("form_full", clear_on_submit=True):
         st.subheader("1. Testata")
         r1c1, r1c2, r1c3, r1c4 = st.columns(4)
         
-        s_o = get_opts("serie")
+        s_o = get_safe_options(df, 'serie')
         s_s = r1c1.selectbox("Serie", ["-- NUOVA --"] + s_o)
-        s_f = r1c1.text_input("Scrivi Serie") if s_s == "-- NUOVA --" else s_s
+        s_f = r1c1.text_input("Nome Serie") if s_s == "-- NUOVA --" else s_s
         
-        ss_o = get_opts("subserie")
+        ss_o = get_safe_options(df, 'subserie')
         ss_s = r1c2.selectbox("Sub-serie", ["-- NESSUNA --"] + ss_o)
-        ss_f = r1c2.text_input("Scrivi Sub-serie") if ss_s == "-- NESSUNA --" else ss_s
+        ss_f = r1c2.text_input("Nome Sub-serie") if ss_s == "-- NESSUNA --" else ss_s
         
-        n_o = get_opts("numero")
+        n_o = get_safe_options(df, 'numero')
         n_s = r1c3.selectbox("Numero", ["-- NUOVO --"] + n_o)
-        n_f = r1c3.text_input("Inserisci Num") if n_s == "-- NUOVO --" else n_s
+        n_f = r1c3.text_input("Inserisci N.") if n_s == "-- NUOVO --" else n_s
         
-        v_o = get_opts("variante")
+        v_o = get_safe_options(df, 'variante')
         v_s = r1c4.selectbox("Variante", ["-- NESSUNA --"] + v_o)
-        v_f = r1c4.text_input("Specifica Var") if v_s == "-- NESSUNA --" else v_s
+        v_f = r1c4.text_input("Specifica Var.") if v_s == "-- NESSUNA --" else v_s
 
         st.subheader("2. Dati Albo")
         r2c1, r2c2 = st.columns([2, 1])
-        t_o = get_opts("titolo")
+        t_o = get_safe_options(df, 'titolo')
         t_s = r2c1.selectbox("Titolo", ["-- NUOVO --"] + t_o)
-        t_f = r2c1.text_input("Scrivi Titolo") if t_s == "-- NUOVO --" else t_s
+        t_f = r2c1.text_input("Titolo") if t_s == "-- NUOVO --" else t_s
         
-        e_o = get_opts("editore")
+        e_o = get_safe_options(df, 'editore')
         e_s = r2c2.selectbox("Editore", ["-- NUOVO --"] + e_o)
-        e_f = r2c2.text_input("Scrivi Editore") if e_s == "-- NUOVO --" else e_s
+        e_f = r2c2.text_input("Editore") if e_s == "-- NUOVO --" else e_s
 
         st.divider()
         r3c1, r3c2, r3c3, r3c4 = st.columns(4)
         form_f = r3c1.selectbox("Formato", LISTA_FORMATO)
         freq_f = r3c2.selectbox("Frequenza", LISTA_FREQUENZA)
         col_f = r3c3.selectbox("Colore", LISTA_COLORE)
-        p_o = [str(x) for x in sorted(pd.to_numeric(df['pagine'], errors='coerce').dropna().unique().astype(int).tolist())]
+        p_o = get_safe_options(df, 'pagine')
         p_s = r3c4.selectbox("Pagine", ["-- NUOVO --"] + p_o)
-        p_f = r3c4.text_input("Num Pagine", value="96") if p_s == "-- NUOVO --" else p_s
+        p_f = r3c4.text_input("Pagine", value="96") if p_s == "-- NUOVO --" else p_s
 
         r4c1, r4c2, r4c3, r4c4 = st.columns(4)
         prez_f = r4c1.number_input("Prezzo", step=0.01)
         val_f = r4c2.selectbox("Valuta", LISTA_VALUTA)
         stat_f = r4c3.selectbox("Stato", LISTA_STATO)
-        b_o = get_opts("storage_box")
+        b_o = get_safe_options(df, 'storage_box')
         b_s = r4c4.selectbox("Box", ["-- NUOVO --"] + b_o)
         b_f = r4c4.text_input("Nome Box") if b_s == "-- NUOVO --" else b_s
 
