@@ -106,9 +106,12 @@ if menu == "📚 Archivio":
         if f_stato != "Tutti": filt_df = filt_df[filt_df['stato'].astype(str) == f_stato]
         if f_formato != "Tutti": filt_df = filt_df[filt_df['formato'].astype(str) == f_formato]
 
-        st.dataframe(filt_df[COLUMNS_ORDER], use_container_width=True, hide_index=True)
-    else:
-        st.info("Database vuoto.")
+        st.dataframe(
+            filt_df[COLUMNS_ORDER], 
+            use_container_width=True, 
+            hide_index=True,
+            height=3500  # Altezza in pixel sufficiente per circa 100 righe
+        )
 
 # --- SEZIONE 2: STATISTICHE ---
 elif menu == "📊 Statistiche":
