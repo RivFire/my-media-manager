@@ -68,7 +68,7 @@ df = carica_dati()
 
 # --- 6. SIDEBAR ---
 st.sidebar.title("📖 Comic Manager")
-menu = st.sidebar.radio("Vai a:", ["📚 Archivio", "📊 Statistiche", "➕ Aggiungi", "⚙️ Configurazione"])
+menu = st.sidebar.radio("Vai a:", ["📚 Archivio", "📊 Statistiche", "⚙️ Configurazione"])
 
 # --- SEZIONE 1: ARCHIVIO ---
 if menu == "📚 Archivio":
